@@ -1,8 +1,43 @@
 version: 2.1
 orbs:
   cypress: cypress-io/cypress@1.29.0
+  codecov: codecov/codecov@1.2.3 #
+  win: circleci/windows@4.1.1
+
+executors:
+  with-chrome-and-firefox:
+    docker:
+      - image: "cypress/browsers:node14.17.0-chrome88-ff89"
+    resource_class: medium+  
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Commands ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+commands:
+  report-coverage:
+    description: |
+      Store coverage report as an artifact and send it to Codecov service.
+    steps:
+      - store_artifacts:
+          path: coverage
+      - run: npx nyc report --reporter=text || true
+      - codecov/upload:
+          file: coverage/coverage-final.json  
 workflows:
   build:
      jobs:
        - cypress/run:
-           yarn: true
+        name: "UI Tests - Chrome"
+        browser: chrome
+        spec: cypress/tests/ui/*
+        executor: with-chrome-and-firefox
+        wait-on: "http://localhost:3000"
+        command-prefix: npx percy exec --
+        yarn: true
+        start: yarn start:ci
+        record: true
+        parallel: true
+        parallelism: 5
+        ci-build-id: ${CIRCLE_SHA1:0:8}
+        group: "UI - Chrome"
+        requires:
+          - Setup Linux
+        post-steps:
+          - report-coverage
